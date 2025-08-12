@@ -12,6 +12,7 @@ import {
 import { MdSaveAs } from "react-icons/md";
 import DroppableDay from "../components/DroppableDay";
 import { isSameDay } from "../utils/dateHelpers";
+import { MdToday } from "react-icons/md";
 
 const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export default function DashboardView() {
@@ -99,6 +100,10 @@ export default function DashboardView() {
 
   function goToToday() {
     setCurrentMonth(new Date());
+  }
+
+  function saveChanges() {
+    alert("Changes saved successfully!");
   }
 
   function generateMonthGrid(year, month) {
@@ -214,7 +219,7 @@ export default function DashboardView() {
             fetchSuggestions={fetchSuggestions}
             onSelect={setSelectedStation}
             getSuggestionLabel={(s) => s.name}
-            placeholder="Select a station..."
+            placeholder="Select a station... Berlin"
           />
           {selectedStation && (
             <div className="mt-3 font-semibold text-center text-teal-600">
@@ -231,12 +236,13 @@ export default function DashboardView() {
           >
             &lt;
           </button>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 p-2">
             <button
               onClick={goToToday}
-              className="px-4 py-1 text-sm bg-teal-100 hover:bg-teal-200 text-teal-700 font-medium rounded-full shadow transform transition duration-300 ease-in-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-300"
+              className="flex items-center px-2.5 py-2 sm:py-1 text-sm bg-teal-100 hover:bg-teal-200 text-teal-700 font-medium rounded-full shadow transform transition duration-300 ease-in-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-300"
             >
-              Today
+              <MdToday className="flex justify-center" />
+              <span className="p-1 hidden sm:inline">Today</span>
             </button>
             <span className="text-lg font-medium text-gray-700">
               {currentMonth.toLocaleDateString(undefined, {
@@ -244,12 +250,12 @@ export default function DashboardView() {
                 year: "numeric",
               })}
             </span>
-            <button 
-              // onClick={goToToday}
-              className=" flex items-center px-4 py-1 text-sm bg-teal-700 hover:bg-teal-900 text-white font-medium rounded-full shadow transform transition duration-300 ease-in-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-300"
+            <button
+              onClick={saveChanges}
+              className=" flex items-center px-2.5 py-2 sm:py-1 text-sm bg-teal-700 hover:bg-teal-900 text-white font-medium rounded-full shadow transform transition duration-300 ease-in-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-300"
             >
-              <MdSaveAs className="flex justify-center" />
-              <span className="px-1"> Update</span>
+              <MdSaveAs className="flex justify-center " />
+              <span className="hidden sm:inline p-1"> Update</span>
             </button>
           </div>
           <button
