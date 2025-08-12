@@ -1,25 +1,55 @@
 import React from "react";
 import { useState, useEffect } from "react";
 import Autocomplete from "../components/Autocomplete";
-import { ImCross } from "react-icons/im";
-import { FaShuttleVan } from "react-icons/fa";
+import {
+  DndContext,
+  MouseSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { MdSaveAs } from "react-icons/md";
+import DroppableDay from "../components/DroppableDay";
+import { isSameDay } from "../utils/dateHelpers";
 
 const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function isSameDay(date1, date2) {
-  return (
-    date1.getFullYear() === date2?.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
-  );
-}
-
 export default function DashboardView() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [data, setData] = useState([]);
   const [selectedStation, setSelectedStation] = useState(null);
   const [selectedStationData, setSelectedStationData] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [dragOperation, setDragOperation] = useState(null); // 'start' or 'end'
+
+  const mockData = [
+    {
+      id: "1",
+      name: "Berlin",
+      bookings: [
+        {
+          id: "1",
+          stationId: "1",
+          customerName: "Kera",
+          startDate: "2025-08-05T10:00:00.000Z",
+          endDate: "2025-08-06T10:00:00.000Z",
+        },
+      ],
+    },
+    {
+      id: "2",
+      name: "Hamburg",
+      bookings: [
+        {
+          id: "2",
+          stationId: "2",
+          customerName: "John",
+          startDate: "2025-08-10T10:00:00.000Z",
+          endDate: "2025-08-15T10:00:00.000Z",
+        },
+      ],
+    },
+  ];
 
   // Fetching all data at once
   useEffect(() => {
@@ -30,6 +60,8 @@ export default function DashboardView() {
         );
         const json = await res.json();
         setData(json);
+        // setData(mockData); // Using mock data for now
+        console.log("booking data", data);
       } catch (err) {
         console.error("Failed to fetch stations:", err);
       }
@@ -100,6 +132,74 @@ export default function DashboardView() {
     currentMonth.getFullYear(),
     currentMonth.getMonth()
   );
+  // Drag and drop functions
+
+  //Sensors for mouse, touch, and keyboard support
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 100, tolerance: 5 },
+    }),
+    useSensor(KeyboardSensor)
+  );
+
+  // Helper: Determine updated start and end dates
+
+  const getUpdatedBookingDates = (booking, type, newDate) => {
+    let startDate = new Date(booking.startDate);
+    let endDate = new Date(booking.endDate);
+    console.log("getUpdatedBookingDates called", startDate);
+
+    if (type === "start") {
+      startDate = newDate;
+      // Ensure end date is after start date
+      if (startDate > endDate) {
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 1);
+      }
+    } else if (type === "end") {
+      endDate = newDate;
+      // Ensure end date is after start date
+      if (endDate < startDate) {
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 1);
+      }
+    }
+
+    return {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    };
+  };
+
+  // Main drag handler
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over) return;
+    console.log("Drag ended:", active, "over:", over.id);
+
+    const [bookingId, type] = active.id.split("-"); // type = 'start' or 'end'
+    const newDate = new Date(over.id);
+    console.log("Drag started with type:", type);
+
+    setData((prev) =>
+      prev.map((station) => ({
+        ...station,
+        bookings: station.bookings.map((b) => {
+          if (b.id === bookingId) {
+            const updatedDates = getUpdatedBookingDates(b, type, newDate);
+            return {
+              ...b,
+              ...updatedDates,
+            };
+          }
+          return b;
+        }),
+      }))
+    );
+
+    setDragOperation(null);
+  };
 
   return (
     <div className="min-h-screen py-8 bg-gradient-to-br from-teal-50 to-white">
@@ -144,6 +244,13 @@ export default function DashboardView() {
                 year: "numeric",
               })}
             </span>
+            <button 
+              // onClick={goToToday}
+              className=" flex items-center px-4 py-1 text-sm bg-teal-700 hover:bg-teal-900 text-white font-medium rounded-full shadow transform transition duration-300 ease-in-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-300"
+            >
+              <MdSaveAs className="flex justify-center" />
+              <span className="px-1"> Update</span>
+            </button>
           </div>
           <button
             onClick={goToNextMonth}
@@ -153,80 +260,38 @@ export default function DashboardView() {
           </button>
         </div>
 
-        {/* Calendar View */}
-        <div
-          data-testid="calendar-grid"
-          className="grid grid-cols-7 gap-2 sm:gap-4"
-        >
-          {weekdays.map((day) => (
-            <div
-              key={day}
-              className="text-center font-bold text-gray-600 border-b pb-2"
-            >
-              {day}
-            </div>
-          ))}
-          {daysArray.map((date, idx) => {
-            const bookings =
-              selectedStationData?.bookings?.filter((b) => {
-                const start = new Date(b.startDate);
-                const end = new Date(b.endDate);
-                return isSameDay(start, date) || isSameDay(end, date);
-              }) || [];
-
-            return (
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          {/* Weekdays Header */}
+          <div className="grid grid-cols-7 gap-2 sm:gap-4">
+            {weekdays.map((day) => (
               <div
-                key={idx}
-                className="bg-teal-50 rounded-lg p-2 min-h-[100px] flex flex-col shadow hover:scale-105 transition"
+                key={day}
+                className="text-center font-bold text-gray-600 border-b pb-2"
               >
-                <div className="font-bold text-gray-700">{date?.getDate()}</div>
-                <div className="mt-1 flex flex-col gap-1">
-                  {bookings.map((b) => (
-                    <div
-                      key={b.id}
-                      onClick={() => setSelectedBooking(b)}
-                      className={`flex flex-col justify-center align-center items-center px-1 py-1 text-xs rounded cursor-pointer
-                         ${
-                           isSameDay(new Date(b.startDate), date)
-                             ? "bg-green-200"
-                             : "bg-red-200"
-                         }`}
-                    >
-                      {isSameDay(new Date(b.startDate), date) ? (
-                        <FaShuttleVan
-                          data-testid="shuttle-icon"
-                          className="text"
-                        />
-                      ) : (
-                        <FaShuttleVan
-                          data-testid="shuttle-icon"
-                          className="transform scale-x-[-1]"
-                        />
-                      )}
-                      <div className="hidden sm:inline text-[10px] font-semibold text-teal-700 text-center break-words text-xs  px-2">
-                        {b.customerName.toUpperCase()}
-                      </div>
-                      <div className="sm:inline sm:rounded sm:bg-transparent  text-teal-700 text-center break-words text-xs px-2">
-                        ID: {b.id}
-                      </div>
-                      <div className="hidden sm:inline text-[10px] text-gray-500">
-                        {new Date(b.startDate).toLocaleDateString()} <br />
-                        {new Date(b.endDate).toLocaleDateString()}
-                      </div>
-                    </div>
-                  ))}
-
-                  {bookings.length === 0 && (
-                    <div className="flex flex-col justify-center align-center items-center text-xs text-gray-300">
-                      <ImCross className=" text-red-600 mr-1" />
-                      <span className="hidden sm:inline">No bookings</span>
-                    </div>
-                  )}
-                </div>
+                {day}
               </div>
-            );
-          })}
-        </div>
+            ))}
+
+            {/* Calendar Days */}
+            {daysArray.map((date, idx) => {
+              const bookings =
+                selectedStationData?.bookings?.filter((b) => {
+                  const start = new Date(b.startDate);
+                  const end = new Date(b.endDate);
+                  return isSameDay(start, date) || isSameDay(end, date);
+                }) || [];
+
+              return (
+                <DroppableDay
+                  key={idx}
+                  date={date}
+                  bookings={bookings}
+                  onBookingClick={(b) => setSelectedBooking(b)}
+                />
+              );
+            })}
+          </div>
+        </DndContext>
       </div>
       {/* Booking Modal */}
       {selectedBooking && (
